@@ -1,0 +1,29 @@
+name: GitHub Metrics - Introduction
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate introduction metrics
+        uses: lowlighter/metrics@latest
+        with:
+          filename: metrics.classic.svg
+          token: ${{ secrets.METRICS_TOKEN }}
+
+          user: thiago-diegoli
+
+          template: classic
+          base: header, activity
+
+          config_timezone: America/Sao_Paulo
+
+          output_action: commit
