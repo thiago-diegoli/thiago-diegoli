@@ -1,6 +1,6 @@
 
 
-## Hey <img src="https://em-content.zobj.net/source/animated-noto-color-emoji/427/waving-hand_light-skin-tone_1f44b-1f3fb_1f3fb.gif" alt="drawing" width="30"/>, I'm Thiago!  
+## Hey <img src="https://em-content.zobj.net/source/animated-noto-color-emoji/427/waving-hand_light-skin-tone_1f44b-1f3fb_1f3fb.gif" alt="hello emoji" width="30"/>, I'm Thiago!  
 
 ![header](https://github.com/thiago-diegoli/thiago-diegoli/blob/main/img/header.png)
 
