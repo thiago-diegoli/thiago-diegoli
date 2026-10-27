@@ -1,8 +1,8 @@
 """
-Updates the stats of dark_mode.svg and light_mode.svg (the neofetch-style profile header) every day.
+Updates the stats of header.svg (the neofetch-style profile header) every day.
 Adapted from Andrew Grant's (Andrew6rant) profile README script.
 
-The SVGs are static: only the elements with an id (age_data, repo_data, ...) are rewritten by this script.
+The SVG is static: only the elements with an id (age_data, repo_data, ...) are rewritten by this script.
 """
 import datetime
 from dateutil import relativedelta
@@ -20,6 +20,7 @@ QUERY_COUNT = {'user_getter': 0, 'follow_getter': 0, 'graph_repos': 0, 'recursiv
 
 BIRTHDAY = datetime.datetime(2005, 2, 12)
 CACHE_COMMENT_SIZE = 7
+SVG_FILE = 'header.svg'
 
 
 def daily_readme(birthday):
@@ -309,30 +310,20 @@ def follow_getter(username):
 
 def svg_overwrite(filename, age_data, commit_data, following_data, repo_data, contrib_data, follower_data, loc_data):
     """
-    Parse SVG files and update elements with my age, commits, following, repositories, and lines written
-    The lengths keep every stats line 60 characters long, so the values stay right-aligned
+    Parse the SVG file and update elements with my age, commits, following, repositories, and lines written
     """
     tree = etree.parse(filename)
     root = tree.getroot()
-    justify_format(root, 'age_data', age_data, 49)
-    justify_format(root, 'repo_data', repo_data, 9 - len(contrib_data))
-    justify_format(root, 'contrib_data', contrib_data)
-    justify_format(root, 'following_data', following_data, 10)
-    justify_format(root, 'commit_data', commit_data, 23)
-    justify_format(root, 'follower_data', follower_data, 10)
-    justify_format(root, 'loc_data', loc_data[2], 21 - len(loc_data[0]) - len(loc_data[1]))
-    justify_format(root, 'loc_add', loc_data[0])
-    justify_format(root, 'loc_del', loc_data[1])
+    find_and_replace(root, 'age_data', age_data)
+    find_and_replace(root, 'repo_data', repo_data)
+    find_and_replace(root, 'contrib_data', contrib_data)
+    find_and_replace(root, 'following_data', following_data)
+    find_and_replace(root, 'commit_data', commit_data)
+    find_and_replace(root, 'follower_data', follower_data)
+    find_and_replace(root, 'loc_data', loc_data[2])
+    find_and_replace(root, 'loc_add', loc_data[0])
+    find_and_replace(root, 'loc_del', loc_data[1])
     tree.write(filename, encoding='utf-8', xml_declaration=True)
-
-
-def justify_format(root, element_id, new_text, length=0):
-    """
-    Updates the text of the element, and modifies the amount of dots in the previous element to justify the new text on the svg
-    """
-    new_text = str(new_text)
-    find_and_replace(root, element_id, new_text)
-    find_and_replace(root, f"{element_id}_dots", ' ' + ('.' * max(0, length - len(new_text))) + ' ')
 
 
 def find_and_replace(root, element_id, new_text):
@@ -392,8 +383,7 @@ if __name__ == '__main__':
     commit_data, repo_data, contrib_data, following_data, follower_data = ('{:,}'.format(n) for n in (commit_data, repo_data, contrib_data, following_data, follower_data))
     total_loc = ['{:,}'.format(n) for n in total_loc[:-1]]  # format added, deleted, and total LOC
 
-    svg_overwrite('dark_mode.svg', age_data, commit_data, following_data, repo_data, contrib_data, follower_data, total_loc)
-    svg_overwrite('light_mode.svg', age_data, commit_data, following_data, repo_data, contrib_data, follower_data, total_loc)
+    svg_overwrite(SVG_FILE, age_data, commit_data, following_data, repo_data, contrib_data, follower_data, total_loc)
 
     print('Total function time:', '{:>11}'.format('%.4f' % (user_time + age_time + loc_time + commit_time + repo_time + contrib_time + follow_time)), 's')
     print('Total GitHub GraphQL API calls:', '{:>3}'.format(sum(QUERY_COUNT.values())))

@@ -9,8 +9,7 @@ on:
       - main
     paths:
       - today.py
-      - dark_mode.svg
-      - light_mode.svg
+      - header.svg
       - .github/workflows/build.yml
 
 permissions:
