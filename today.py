@@ -1,9 +1,3 @@
-"""
-Updates the stats of header.svg (the neofetch-style profile header) every day.
-Adapted from Andrew Grant's (Andrew6rant) profile README script.
-
-The SVG is static: only the elements with an id (age_data, repo_data, ...) are rewritten by this script.
-"""
 import datetime
 from dateutil import relativedelta
 import requests

@@ -1,0 +1,43 @@
+name: Profile README - Claude Code Spinner
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - generate.mjs
+      - clawd-scenes.mjs
+      - .github/workflows/spinner.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spinner
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Generate today's spinner
+        run: node generate.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Commit
+        run: |-
+          git add spinner.svg spinner-mobile.svg README.md
+          git diff --cached --stat
+          git config --global user.email "github-actions-bot@thiago-diegoli.github.io"
+          git config --global user.name "thiago-diegoli/GitHub-Actions-Bot"
+          git commit -m "Refresh spinner for $(date -u +%F)" || echo "No changes to commit"
+          git push || { git pull --rebase && git push; }

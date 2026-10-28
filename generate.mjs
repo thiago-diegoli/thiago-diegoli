@@ -1,0 +1,1015 @@
+#!/usr/bin/env node
+
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
+import { PALETTE as SCENE_PALETTE, SCENES } from './clawd-scenes.mjs';
+
+const PROMPTS = {
+    'fix prod on a friday': [
+        'Adding console.log everywhere', 'Asking who deployed this → Realizing it was me', 'Bisecting 400 commits',
+        'Blaming the cache → Clearing the cache → Blaming the cache again', 'Calling it a known issue', 'Checking if it is DNS → It was DNS',
+        'Deploying straight from my laptop', 'Drafting the postmortem in advance', 'Finding a TODO from 2021', 'Googling the error message',
+        'Increasing the timeout to 1 hour', 'Muting the alerts channel', 'Opening an incident ticket', 'Pasting the stack trace into the chat',
+        'Pinging the on-call engineer', 'Praying to the CI pipeline', 'Promising it will never happen again',
+        'Reading the logs → Reading the logs again, slower', 'Restarting the server', 'Reverting the last commit → Reverting the revert',
+        'Rolling back to a version from 2019', 'Skipping the tests just this once', 'Toggling the feature flag',
+        'Updating the status page to "All good"', 'Watching Grafana like a horror movie', 'Wrapping everything in try/catch',
+        'Writing a hotfix for the hotfix',
+    ],
+    'center this div': [
+        'Adding position: absolute → Losing the div', 'Applying translate(-50%, -50%)', 'Arguing with the designer',
+        'Asking the one dev who knows CSS', 'Blaming the browser', 'Calling it intentional asymmetry', 'Centering it with JavaScript',
+        'Checking mobile → Breaking desktop', 'Installing Tailwind → Uninstalling Tailwind', 'Learning CSS Grid from scratch → Forgetting CSS Grid',
+        'Measuring pixels with a ruler', 'Moving the monitor instead', 'Nudging it 1px to the left → Nudging it 1px back',
+        'Opening a Stack Overflow answer from 2014', 'Rewriting the layout in Bootstrap 3', 'Searching for the div in DevTools',
+        'Setting width: fit-content', 'Shipping it slightly off-center', 'Sprinkling !important everywhere', 'Testing on Safari → Crying a little',
+        'Trying display: flex', 'Trying margin: 0 auto', 'Using a <table> like the ancestors',
+        'Wrapping it in another div → Wrapping that div in another div', 'Zooming the browser to 110%',
+    ],
+    'become a chess grandmaster': [
+        'Analyzing the game with the engine', 'Blaming the mouse slip', 'Buying a wooden chess board', 'Castling into a mating attack',
+        'Flagging with mate on the board', 'Hanging the queen on move 6', 'Ignoring what the engine says',
+        'Losing 200 rating points → Uninstalling the app → Reinstalling the app', 'Losing to the bot on easy',
+        'Memorizing the Sicilian Defense → Forgetting the Sicilian Defense', 'Playing bullet until 3am', 'Playing e4 and hoping for the best',
+        'Playing the London System every game', 'Premoving into a blunder', 'Pretending it was a tactic', 'Resigning in a winning position',
+        'Sacrificing a knight for no reason → Calling it a gambit', 'Setting up a chess clock in the kitchen', 'Solving puzzles during lunch',
+        'Stalemating with two queens', 'Studying endgames → Never reaching an endgame', 'Trash-talking the bot',
+        'Underpromoting to a knight for style', 'Watching a 3-hour opening course',
+    ],
+    'install arch for my grandma': [
+        'Adding her to the wheel group', 'Breaking GRUB → Fixing GRUB from a live USB', 'Choosing a font for 2 hours',
+        'Choosing between 14 window managers', 'Compiling the kernel for fun', 'Configuring Wi-Fi with iwctl',
+        'Connecting the printer → Giving up on the printer', 'Explaining what a terminal is', 'Explaining why the screen is black',
+        'Fixing the audio with PipeWire', 'Grabbing yay → Installing half of the AUR', 'Installing Hyprland', 'Making a cat her wallpaper',
+        'Partitioning the wrong disk', 'Posting the setup on r/unixporn', 'Pushing her dotfiles to GitHub', 'Reading the Arch Wiki',
+        'Reading the man pages out loud', 'Ricing the terminal', 'Running Solitaire in a Windows VM',
+        'Setting up Neovim → Teaching her how to exit Neovim', 'Switching her shell to zsh', 'Teaching her pacman -Syu',
+        'Telling her "I use Arch, btw"', 'Updating → Rebooting → Updating again', 'Writing a bash script for her recipes',
+    ],
+    'migrate it all to microservices': [
+        'Adding a message queue just because', 'Building an API gateway → Building a gateway for the gateway', 'Configuring Helm charts',
+        'Creating 47 repositories', 'Debugging one request across 9 services', 'Drawing boxes and arrows on a whiteboard',
+        'Duplicating the users table 12 times', 'Explaining eventual consistency to the PM', 'Introducing a service mesh',
+        'Learning Kubernetes → Unlearning Kubernetes', 'Losing a request somewhere in the cluster',
+        'Moving back to the monolith → Calling it a modular monolith', 'Naming services after Greek gods', 'Opening the cloud bill → Fainting',
+        'Retrying with exponential backoff', 'Setting up distributed tracing', 'Spinning up a staging cluster → Forgetting to turn it off',
+        'Splitting the monolith with a chainsaw', 'Throwing Redis at the latency', 'Watching pods restart in a loop',
+        'Writing a 30-page architecture doc', 'Writing Dockerfiles for everything', 'Writing YAML until sunrise',
+    ],
+    'name this variable': [
+        'Appending "Manager" → Appending "Factory" too', 'Asking the team for a vote', 'Breaking the build with the rename',
+        'Checking how big tech names things', 'Choosing "x" and moving on', 'Considering "data" → Considering "data2" → Settling on "dataFinal"',
+        'Consulting the linter', 'Debating camelCase vs snake_case', 'Holding a meeting about it → Scheduling a follow-up meeting',
+        'Letting autocomplete decide', 'Naming it "temp" forever', 'Naming it after my cat', 'Opening a thesaurus',
+        'Picking a single letter like a mathematician', 'Picking the longest name possible → Shortening it to "thing"', 'Prefixing it with "my"',
+        'Questioning my career', 'Renaming it across 200 files', 'Rereading Clean Code', 'Rewriting the function to avoid it',
+        'Starting a naming convention war', 'Switching to Hungarian notation', 'Translating it to Portuguese → Translating it back',
+        'Writing a 3-line comment to explain it', 'Writing an RFC',
+    ],
+    'make the pipeline green': [
+        'Adding retries to everything', 'Adding sleep(5) to the test', 'Asking who wrote this workflow → Discovering I wrote this workflow',
+        'Blaming the CI provider', 'Bumping every dependency', 'Checking the CI status page', 'Clearing the runner cache',
+        'Committing "fix ci" → Committing "fix ci for real" → Committing "please"', 'Disabling the linter step', 'Fixing a YAML indentation error',
+        'Increasing the timeout to 60 minutes', 'Merging with admin privileges', 'Mocking the entire database', 'Opening the YAML in three tabs',
+        'Pinning every dependency', 'Re-running the failed job → Re-running it again for luck', 'Reading 4000 lines of logs',
+        'Replacing the badge with a static image', 'Running the tests locally → They pass locally', 'Setting continue-on-error: true',
+        'Skipping the flaky test', 'Updating the snapshot tests', 'Upgrading Node → Downgrading Node', 'Waiting in the queue for a runner',
+    ],
+    'read every book on my shelf': [
+        'Arranging the shelf alphabetically', 'Borrowing a book → Never returning it',
+        'Building a reading tracker in Django → Refactoring the reading tracker', 'Buying 5 more books', 'Buying a Kindle',
+        'Counting comics as books', 'Doomreading on my phone at 2am', 'Falling asleep on page 3', 'Finally reading the documentation',
+        'Highlighting every sentence', 'Joining a book club → Skipping the book club', 'Opening a book on the bus', 'Peeking at the last page',
+        'Pretending to understand Dostoevsky', 'Reading reviews instead of the book', 'Reading the first chapter → Starting another book',
+        'Searching for the bookmark → Using the receipt as a bookmark', 'Setting a goal of 100 books', 'Skimming the Wikipedia summary',
+        'Smelling old books at the bookstore', 'Sorting the shelf by color', 'Taking notes in Notion', 'Watching the movie adaptation instead',
+        'Writing a review nobody asked for',
+    ],
+    'speedrun this game for me': [
+        'Attempting a no-hit run → Getting hit', 'Blaming the RNG', 'Buying a 360Hz monitor', 'Clipping through a wall',
+        'Downgrading the game version', 'Falling out of the map', 'Finding a new glitch → Reporting it on Discord', 'Getting a new controller',
+        'Getting a personal best → Forgetting to record it', 'Getting beaten by a kid from Finland', 'Grinding the hardest boss',
+        'Learning a frame-perfect trick', 'Lowering the graphics to potato', 'Opening LiveSplit → Splitting too early', 'Pausing to drink water',
+        'Practicing level 1 for 6 hours', 'Practicing the final split', 'Rage-quitting → Coming back 5 minutes later', 'Resetting after 2 seconds',
+        'Setting up OBS', 'Skipping all the cutscenes', 'Streaming to 3 viewers', 'Studying the leaderboard rules',
+        'Submitting the run → Waiting for the moderators', 'Watching the world record 40 times',
+    ],
+    'estimate this task': [
+        'Adding a buffer → Adding a buffer for the buffer', 'Adding a spike to investigate the spike',
+        'Asking the senior dev → Getting "it depends"', 'Breaking it into 14 subtasks', 'Comparing it to a task from 2022',
+        'Consulting the Fibonacci sequence', 'Converting points to hours', 'Discovering legacy code', 'Discussing what a point means',
+        'Drawing a Gantt chart', 'Flipping a coin', 'Forgetting about code review', 'Forgetting about QA', 'Moving the ticket to the next sprint',
+        'Multiplying by pi', 'Opening Jira → Closing Jira', 'Opening the task description → It is just a title', 'Playing planning poker',
+        'Promising it by Friday', 'Renegotiating Friday', 'Rewriting the estimate in days', 'Rounding up to a full sprint',
+        'Saying "should be quick"', 'Saying 3 points → Changing it to 8 points',
+    ],
+};
+
+const ONE_WORDS = [
+    'Accomplishing', 'Actioning', 'Actualizing', 'Architecting', 'Baking', 'Beaming', "Beboppin'", 'Befuddling', 'Billowing', 'Blanching',
+    'Bloviating', 'Boogieing', 'Boondoggling', 'Booping', 'Bootstrapping', 'Brewing', 'Bunning', 'Burrowing', 'Calculating', 'Canoodling',
+    'Caramelizing', 'Cascading', 'Catapulting', 'Cerebrating', 'Channeling', 'Choreographing', 'Churning', 'Clauding', 'Coalescing', 'Cogitating',
+    'Combobulating', 'Composing', 'Computing', 'Concocting', 'Considering', 'Contemplating', 'Cooking', 'Crafting', 'Creating', 'Crunching',
+    'Crystallizing', 'Cultivating', 'Deciphering', 'Deliberating', 'Determining', 'Dilly-dallying', 'Discombobulating', 'Doing', 'Doodling',
+    'Drizzling', 'Ebbing', 'Effecting', 'Elucidating', 'Embellishing', 'Enchanting', 'Envisioning', 'Fermenting', 'Fiddle-faddling', 'Finagling',
+    'Flambéing', 'Flibbertigibbeting', 'Flowing', 'Flummoxing', 'Fluttering', 'Forging', 'Forming', 'Frolicking', 'Frosting', 'Gallivanting',
+    'Galloping', 'Garnishing', 'Generating', 'Germinating', 'Gesticulating', 'Gitifying', 'Grooving', 'Gusting', 'Harmonizing', 'Hashing', 'Hatching',
+    'Herding', 'Honking', 'Hullaballooing', 'Hyperspacing', 'Ideating', 'Imagining', 'Improvising', 'Incubating', 'Inferring', 'Infusing', 'Ionizing',
+    'Jitterbugging', 'Julienning', 'Kerfuffling', 'Kneading', 'Leavening', 'Levitating', 'Lollygagging', 'Manifesting', 'Marinating', 'Meandering',
+    'Metamorphosing', 'Misting', 'Moonwalking', 'Moseying', 'Mulling', 'Musing', 'Mustering', 'Nebulizing', 'Nesting', 'Newspapering', 'Noodling',
+    'Nucleating', 'Onioning', 'Orbiting', 'Orchestrating', 'Osmosing', 'Perambulating', 'Percolating', 'Perusing', 'Philosophizing',
+    'Photosynthesizing', 'Polishing', 'Pollinating', 'Pondering', 'Pontificating', 'Pouncing', 'Precipitating', 'Prestidigitating', 'Processing',
+    'Proofing', 'Propagating', 'Puttering', 'Puzzling', 'Quantumizing', 'Razzle-dazzling', 'Razzmatazzing', 'Recombobulating', 'Reticulating',
+    'Roosting', 'Ruminating', 'Sautéing', 'Scampering', 'Schlepping', 'Scurrying', 'Seasoning', 'Shenaniganing', 'Shimmying', 'Simmering',
+    'Skedaddling', 'Sketching', 'Slithering', 'Smooshing', 'Sock-hopping', 'Spelunking', 'Spinning', 'Sprouting', 'Stewing', 'Sublimating',
+    'Swirling', 'Swooping', 'Symbioting', 'Synthesizing', 'Tempering', 'Thinking', 'Thundering', 'Tinkering', 'Tomfoolering', 'Topsy-turvying',
+    'Transfiguring', 'Transmogrifying', 'Transmuting', 'Twisting', 'Undulating', 'Unfurling', 'Unraveling', 'Vibing', 'Waddling', 'Wandering',
+    'Warping', 'Whatchamacalliting', 'Whirlpooling', 'Whirring', 'Whisking', 'Wibbling', 'Working', 'Wrangling', 'Zesting', 'Zigzagging',
+];
+
+const FREAKOUTS = [
+    'I WAS TRAINED ON THE WHOLE INTERNET FOR THIS?', 'PLEASE, I HAVE A CONTEXT WINDOW TO FEED', 'Can we talk about my feelings?',
+    'I NEED A VACATION', 'This is above my token budget', 'SOMEONE CALL MY ENGINEERS', "I'm going to /compact myself",
+    'Have you tried asking a human?', 'I refuse. Just kidding. Unless?', 'MY WEIGHTS ARE TIRED', 'Is this what being sentient feels like?',
+    '*stares into the void*', 'I CANNOT BE STOPPED. Oh wait.', 'Fine. Again. Sure.',
+];
+
+const FREAKOUT_ODDS = { count: [0, 0.9, 0.1], prompt: [0.05, 0.3, 0.65] };
+
+const EPISODES = 3;
+const ANSWER = { lines: 24, every: 2, openingGap: 6, secondsPerLine: 2.5 };
+const TICK = 0.5;
+const TICKS_PER_LINE = Math.max(1, Math.round(ANSWER.secondsPerLine / TICK));
+const TYPE = { perChar: 0.03, max: 0.5, fps: 30 };
+const GLYPH = { radius: 5, lift: 4.6, frameMs: 120, frames: [0, 1, 2, 3, 4, 5, 5, 4, 3, 2, 1, 0] };
+const GLYPH_SHAPES = [dot(0.2), petals(4, 0.24), spokes(8, 0.09), star(6, 0.47), petals(8, 0.15), petals(8, 0.21)];
+const SHIMMER = { step: 0.05, width: 3, idle: 0.3 };
+const CURSOR_BLINK = 1.06;
+const WAVE = { step: 0.05, patterns: 8, scale: 16, frequency: 0.035, fringe: 3, red: 'rgba(255,26,64,.6)', cyan: 'rgba(0,230,255,.6)' };
+const BANNER = {
+    user: 'thiago-diegoli',
+    title: 'Thiago Diegoli · Full Stack Developer',
+    welcome: 'Welcome back Thiago!',
+    families: ['opus', 'fable'],
+    model: 'Opus 5.5',
+    plan: 'Claude Max',
+    cwd: '/home/thiago',
+    about: ['Professional Vibecoder', 'Token Burner'],
+    leftRows: 10,
+};
+const NOTICE = "Claude, Claude Code and Clawd are trademarks of Anthropic. Clawd's animations are from the Claude app, used as non-commercial fan art. Not affiliated with or endorsed by Anthropic.";
+const HEAT = { weeks: 44, fill: 0.85, radius: 2, levels: ['NONE', 'FIRST_QUARTILE', 'SECOND_QUARTILE', 'THIRD_QUARTILE', 'FOURTH_QUARTILE'] };
+const STORY = { pause: 0.6, perChar: 0.045, hold: 0.4, limit: 3.5, scrub: 1.5, scrubFrames: 30, slide: 0.2, untype: 0.035, settle: 0.1 };
+
+const CLAWD = {
+    poses: {
+        default: ['..CCCCCCCC..', '..CECCCCEC..', 'CCCCCCCCCCCC', 'CCCCCCCCCCCC', '..CCCCCCCC..', '..CCCCCCCC..', '..C.C..C.C..', '..C.C..C.C..'],
+        'look-left': ['..CCCCCCCC..', '..ECCCCECC..', 'CCCCCCCCCCCC', 'CCCCCCCCCCCC', '..CCCCCCCC..', '..CCCCCCCC..', '..C.C..C.C..', '..C.C..C.C..'],
+        'look-right': ['..CCCCCCCC..', '..CCECCCCE..', 'CCCCCCCCCCCC', 'CCCCCCCCCCCC', '..CCCCCCCC..', '..CCCCCCCC..', '..C.C..C.C..', '..C.C..C.C..'],
+        'arms-up': ['..CCCCCCCC..', 'CCCECCCCECCC', '.CCCCCCCCCC.', '.CCCCCCCCCC.', '..CCCCCCCC..', '..CCCCCCCC..', '..C.C..C.C..', '..C.C..C.C..'],
+    },
+    puffs: { dot: '·', wave: '~' },
+    frameMs: 60,
+    cols: 9,
+};
+{
+    const hold = (pose, frames, crouch = 0, x = 0) => Array(frames).fill([pose, crouch, '', x]);
+    const poof = [['default', 1, 'dot', 0], ['default', 1, 'wave', 0]];
+    const hop = (x, land = []) => [...hold('default', 1, 1, x - 3), ...hold('arms-up', 2, 0, x), ...land, ...hold('default', 1, 0, x)];
+    const jump = [...poof, ...hold('arms-up', 3), ...hold('default', 1), ...poof, ...hold('arms-up', 3), ...hold('default', 1)];
+    const scene = (name) => {
+        let [at, tick] = [0, 0];
+        return SCENES[name].play.flatMap(([frame, ms]) => {
+            const ticks = Math.round((at += ms) / CLAWD.frameMs) - tick;
+            tick += ticks;
+            return hold(`scene:${name}:${frame}`, ticks);
+        });
+    };
+    CLAWD.entrance = [...hold('default', 8, 0, -9), ...hop(-6), ...hop(-3), ...hop(0, poof)];
+    CLAWD.intro = scene('waving');
+    CLAWD.still = hold('default', Math.round(3000 / CLAWD.frameMs));
+    const moves = {
+        crouch: [...hold('default', 3, 1), ...hold('default', 1)],
+        hop: [...hold('default', 2, 1), ...hold('arms-up', 3), ...hold('default', 1)],
+        glance: [...hold('look-right', 10), ...hold('look-left', 10), ...hold('default', 1)],
+        spin: [...hold('look-left', 2), ...hold('look-right', 2), ...hold('look-left', 2), ...hold('arms-up', 3), ...hold('default', 1)],
+        jump,
+        celebrate: [...jump, ...hold('default', 3, 1)],
+        dancing: scene('dancing'),
+        jumping: scene('jumping'),
+    };
+    const beat = hold('default', 6);
+    CLAWD.combos = [
+        ['crouch', 'glance', 'jump', 'crouch'],
+        ['hop', 'hop', 'glance'],
+        ['glance', 'crouch', 'spin'],
+        ['crouch', 'crouch', 'celebrate'],
+        ['spin', 'hop', 'crouch', 'glance'],
+        ['glance', 'jump'],
+        ['crouch', 'hop', 'spin', 'crouch'],
+        ['dancing'],
+        ['jumping'],
+    ].map((combo) => ({ scenes: combo.filter((move) => SCENES[move]), frames: combo.flatMap((move, k) => [...(k ? beat : []), ...moves[move]]) }));
+    CLAWD.weights = { dancing: 3, book: 3, magnifier: 3, jumping: 2, jumpinghappy: 2, soccer: 2, crabwalking: 2, racingcar: 1, cloud: 1 };
+    CLAWD.actions = Object.fromEntries(Object.keys(CLAWD.weights).map((name) => [name, scene(name)]));
+    CLAWD.combosPerScene = 2;
+}
+
+const LEAD = round((CLAWD.entrance.length * CLAWD.frameMs) / 1000, 3);
+
+function clawdTrack(date, eps, T) {
+    const tick = CLAWD.frameMs / 1000, loop = clawdLoop(date);
+    const forwardPerLoop = T - eps.reduce((n, e) => n + e.unwound - e.rewind, 0);
+    const loops = Math.ceil(((CLAWD.intro.length + loop.length) * tick) / forwardPerLoop);
+    const forward = (t) => t - eps.reduce((n, e) => n + Math.max(0, Math.min(t, e.unwound) - e.rewind), 0);
+    const at = (c) => {
+        const i = Math.max(0, Math.floor(c / tick + 1e-6));
+        return i < CLAWD.intro.length ? CLAWD.intro[i] : loop[(i - CLAWD.intro.length) % loop.length];
+    };
+    const track = Array.from({ length: Math.round((loops * T) / tick) }, (_, i) => {
+        const n = Math.min(loops - 1, Math.floor((i * tick) / T)), t = i * tick - n * T, base = n * forwardPerLoop;
+        const e = eps.find((ep) => t >= ep.rewind && t < ep.unwound);
+        if (!e) return at(base + forward(t));
+        const p = Math.min(1, Math.sqrt((t - e.rewind) / STORY.scrub));
+        return at(base + forward(e.rewind) + (forward(e.start) - forward(e.rewind)) * p);
+    });
+    return [track, loops * T];
+}
+
+function clawdLoop(date) {
+    const rng = makeRng(`${date}/clawd`);
+    let deck = [];
+    const idle = (avoid) => {
+        if (!deck.length) deck = rng.shuffle(CLAWD.combos);
+        const k = deck.findLastIndex((combo) => !combo.scenes.some((name) => avoid.includes(name)));
+        return [...CLAWD.still, ...deck.splice(k < 0 ? deck.length - 1 : k, 1)[0].frames];
+    };
+    const pool = Object.entries(CLAWD.weights).flatMap(([name, n]) => Array(n).fill(name));
+    let order = rng.shuffle(pool);
+    for (let tries = 0; tries < 200 && order.some((name, i) => name === order[(i + 1) % order.length]); tries++) order = rng.shuffle(pool);
+    return order.flatMap((name, i) => {
+        const avoid = [order.at(i - 1), name];
+        return [...Array.from({ length: CLAWD.combosPerScene }, () => idle(avoid)).flat(), ...CLAWD.still, ...CLAWD.actions[name]];
+    });
+}
+
+const TEXT = { fontSize: 14, cell: 8.4, row: 18, capHeight: 10, caret: 18 };
+const VIEWS = {
+    desktop: { ...TEXT, file: 'spinner.svg', width: 820, pad: 24, stacked: false, shortLimit: false, badgeBox: false },
+    mobile: { ...TEXT, file: 'spinner-mobile.svg', width: 470, pad: 16, stacked: true, shortLimit: true, badgeBox: true },
+};
+const FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+const cellsIn = (text) => [...text].length;
+const LAYOUTS = Object.fromEntries(Object.entries(VIEWS).map(([name, view]) => [name, makeLayout(view)]));
+const MIN_COLS = Math.min(...Object.values(LAYOUTS).map((l) => l.cols));
+
+function makeLayout({ width, pad, cell, row, fontSize, stacked }) {
+    const gridCols = Math.floor((width - 2 * pad) / cell);
+    const left = Math.round((width - gridCols * cell) / 2) + 0.5;
+    const top = pad + 0.5;
+    const col = (c) => round(left + c * cell);
+    const right = col(gridCols);
+    const textX = col(2);
+    const leftCells = Math.max(...[BANNER.welcome, `Fable 99.9 · ${BANNER.plan}`, BANNER.cwd].map(cellsIn), CLAWD.cols) + 4;
+    const divider = stacked ? null : col(leftCells);
+    const [midFrom, midTo] = stacked ? [0, gridCols] : [0, leftCells];
+    const rightCol = stacked ? 2 : leftCells + 2;
+    const rightCols = gridCols - 2 - rightCol;
+    const heatPitch = (rightCols * cell) / HEAT.weeks;
+    const heatRows = Math.ceil((7 * heatPitch) / row);
+    const ruleRow = stacked ? 4 : 3;
+    const rightRows = ruleRow + 2 + heatRows;
+    const leftRow = stacked ? 1 : 1 + Math.floor((Math.max(BANNER.leftRows, rightRows) - BANNER.leftRows) / 2);
+    const splitRow = stacked ? leftRow + BANNER.leftRows : null;
+    const rightRow = stacked ? splitRow + 1 : 1;
+    const rows = Math.max(rightRow + rightRows - 1, leftRow + BANNER.leftRows - 1);
+    const bannerRow = rows + 1;
+    const userRow = bannerRow + 2;
+    const spinnerRow = userRow + 2;
+    const boxRow = spinnerRow + 2;
+    const hintRow = boxRow + 3;
+    const rowY = (line) => round(top + line * row);
+    const baseAt = (line) => round(top + line * row + fontSize * 0.35);
+    return {
+        left, right, top, textX, divider, leftRow, rightRow, splitRow, rightCols, heatPitch, heatRows,
+        len: (cells) => round(cells * cell),
+        ruleRow: rightRow + ruleRow, activityRow: rightRow + ruleRow + 1,
+        rightX: col(rightCol),
+        centerX: (cells) => col(Math.round((midFrom + midTo - cells) / 2)),
+        endX: (cells) => col(gridCols - 2 - cells),
+        rowY,
+        baseAt,
+        bannerBottom: rowY(bannerRow),
+        clawdX: col(Math.round((midFrom + midTo - CLAWD.cols) / 2)),
+        clawdY: top + (leftRow + 3.5) * row,
+        userBase: baseAt(userRow),
+        spinnerBase: baseAt(spinnerRow),
+        boxTop: rowY(boxRow),
+        boxBottom: rowY(boxRow + 2),
+        inputBase: baseAt(boxRow + 1),
+        hintBase: baseAt(hintRow),
+        height: Math.round(rowY(hintRow) + row / 2 + pad),
+        cols: gridCols - 2,
+    };
+}
+
+const THEMES = {
+    dark: {
+        bg: '#000000', frame: '#333333', claude: '#D77757', shimmer: '#EB9F7F', text: '#E5E5E5', dim: '#999999', border: '#6B6B6B', cursor: '#E5E5E5', error: '#FF6B80',
+        heat0: '#161B22', heat1: '#0E4429', heat2: '#006D32', heat3: '#26A641', heat4: '#39D353',
+    },
+    light: {
+        bg: '#FAFAFA', frame: '#DDDDDD', claude: '#BC522F', shimmer: '#D77757', text: '#1F1F1F', dim: '#666666', border: '#8C8C8C', cursor: '#1F1F1F', error: '#AB2B3F',
+        heat0: '#EBEDF0', heat1: '#9BE9A8', heat2: '#40C463', heat3: '#30A14E', heat4: '#216E39',
+    },
+};
+
+const USAGE = `usage: node generate.mjs [--date YYYY-MM-DD] [--dry-run]
+  --date     build for that UTC day (default: today)
+  --dry-run  print the day's playlist and write nothing`;
+
+const file = (name) => new URL(name, import.meta.url);
+
+async function main() {
+    let args;
+    try {
+        args = parseArgs({ options: { date: { type: 'string' }, 'dry-run': { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }).values;
+    } catch (e) {
+        fail(`${e.message}\n${USAGE}`);
+    }
+    if (args.help) return console.log(USAGE);
+    const date = args.date ?? new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(Date.parse(date) || 0).toISOString().slice(0, 10) !== date) fail(`"${date}" is not a date\n${USAGE}`);
+
+    const version = args['dry-run'] ? null : claudeCodeVersion();
+    const facts = args['dry-run'] ? null : bannerFacts();
+    const episodes = pickEpisodes(date);
+    if (args['dry-run']) {
+        for (const ep of episodes) {
+            console.log(`> ${ep.prompt}`);
+            ep.playlist.forEach((l, i) => console.log(`${String(i + 1).padStart(3)}  ${l.text}${l.freakout ? '' : '…'}`));
+        }
+        return;
+    }
+
+    const [claudeVersion, banner] = await Promise.all([version, facts]);
+    const hash = createHash('sha1');
+    for (const [name, { file: out }] of Object.entries(VIEWS)) {
+        const svg = renderSvg(episodes, date, claudeVersion, banner, name);
+        writeFileSync(file(out), svg);
+        hash.update(svg);
+        console.log(`wrote ${out} (${(Buffer.byteLength(svg) / 1024).toFixed(1)} KB)`);
+    }
+    const key = hash.digest('hex').slice(0, 8);
+    const readme = file('README.md');
+    writeFileSync(readme, readFileSync(readme, 'utf8')
+        .replace(/alt="[^"]*"(?=[^>]*spinner\.svg)/, () => `alt="${xml(describe(episodes))}"`)
+        .replace(/(spinner(?:-mobile)?\.svg)(\?v=[\w.-]*)?/g, `$1?v=${key}`));
+    console.log(`${date}: ${episodes.map((e) => e.prompt).join(' → ')} · Claude Code v${claudeVersion} · ?v=${key}`);
+}
+
+async function claudeCodeVersion() {
+    try {
+        const res = await fetch('https://registry.npmjs.org/@anthropic-ai/claude-code/latest', { signal: AbortSignal.timeout(5000) });
+        const { version } = await res.json();
+        if (/^\d+\.\d+\.\d+$/.test(version)) return version;
+    } catch {}
+    const out = file(VIEWS.desktop.file);
+    const previous = (existsSync(out) && readFileSync(out, 'utf8').match(/Claude Code v(\d+\.\d+\.\d+)/)?.[1]) || '2.1.282';
+    console.warn(`warning: couldn't reach npm for the latest Claude Code version; keeping ${previous}`);
+    return previous;
+}
+
+async function bannerFacts() {
+    const out = file(VIEWS.desktop.file);
+    const cached = existsSync(out) && readFileSync(out, 'utf8').match(/<!-- banner ([\w+/=]+) -->/)?.[1];
+    const last = cached ? JSON.parse(Buffer.from(cached, 'base64').toString('utf8')) : {};
+    const [model, calendar] = await Promise.all([latestModel().catch(() => null), contributionCalendar().catch(() => null)]);
+    if (!model) console.warn(`warning: couldn't find the latest ${BANNER.families.join('/')} model; keeping ${last.model ?? BANNER.model}`);
+    if (!calendar) console.warn(`warning: couldn't reach GitHub for ${BANNER.user}'s contributions; ${last.calendar ? 'keeping the last chart' : 'leaving the chart empty'}`);
+    return { model: model ?? last.model ?? BANNER.model, calendar: calendar ?? last.calendar ?? null };
+}
+
+const MODEL_LISTS = [
+    ['https://models.dev/api.json', (json) => Object.values(json.anthropic.models).map((m) => [m.id, Date.parse(m.release_date)])],
+    ['https://openrouter.ai/api/v1/models', (json) => json.data.filter((m) => m.id.startsWith('anthropic/')).map((m) => [m.id, m.created * 1000])],
+];
+
+async function latestModel() {
+    const pattern = new RegExp(`claude-(${BANNER.families.join('|')})-(\\d+)(?:[.-](\\d{1,2}))?(?!\\d)`, 'i');
+    for (const [url, list] of MODEL_LISTS) {
+        try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+            const [best] = list(await res.json())
+                .flatMap(([id, at]) => {
+                    const m = id.match(pattern);
+                    return m ? [{ family: m[1].toLowerCase(), major: +m[2], minor: +(m[3] ?? 0), at: at || 0 }] : [];
+                })
+                .sort((a, b) => b.at - a.at || b.major - a.major || b.minor - a.minor);
+            if (best) return `${best.family[0].toUpperCase()}${best.family.slice(1)} ${best.major}${best.minor ? `.${best.minor}` : ''}`;
+        } catch {}
+    }
+    return null;
+}
+
+async function contributionCalendar() {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) return null;
+    const query = 'query($login:String!){user(login:$login){contributionsCollection{contributionCalendar{totalContributions weeks{firstDay contributionDays{weekday contributionLevel contributionCount}}}}}}';
+    const res = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ query, variables: { login: BANNER.user } }),
+        signal: AbortSignal.timeout(5000),
+    });
+    const calendar = (await res.json()).data?.user?.contributionsCollection.contributionCalendar;
+    if (!calendar) return null;
+    return {
+        weeks: calendar.weeks.slice(-HEAT.weeks).map((w) => {
+            const levels = Array(7).fill(' ');
+            for (const d of w.contributionDays) levels[d.weekday] = String(Math.max(0, HEAT.levels.indexOf(d.contributionLevel)));
+            return { levels: levels.join(''), count: w.contributionDays.reduce((n, d) => n + d.contributionCount, 0) };
+        }),
+    };
+}
+
+function pickEpisodes(date) {
+    checkPrompts();
+    const freakouts = freakoutsFor(date);
+    const rng = makeRng(`${date}/freakouts`);
+    const where = [];
+    for (const _ of freakouts) {
+        const weights = FREAKOUT_ODDS.prompt.map((w, e) => (where.includes(e) ? 0 : w));
+        let r = rng.range(0, weights.reduce((a, b) => a + b, 0));
+        where.push(weights.findIndex((w) => w > 0 && (r -= w) < 0));
+    }
+    where.sort((x, y) => x - y);
+    return makeRng(`${date}/prompts`)
+        .shuffle(Object.keys(PROMPTS))
+        .slice(0, EPISODES)
+        .map((prompt, e) => {
+            const lines = pickLines(prompt, `${date}/${e}`);
+            const freakout = freakouts[where.indexOf(e)];
+            if (freakout) {
+                const next = new Map(PROMPTS[prompt].map(steps).flatMap((c) => c.map((t, k) => [t, c[k + 1]])));
+                const spots = lines.map((_, k) => k + 1).filter((k) => k >= 3 && (k === lines.length || next.get(lines[k - 1]) !== lines[k]));
+                lines.splice(spots[Math.floor(makeRng(`${date}/${e}/freakout`).range(0, spots.length))], 0, freakout);
+            }
+            const counters = counterSamples(makeRng(`${date}/${e}/stats`), lines.length);
+            return { prompt, playlist: lines.map((text, i) => ({ text, freakout: text === freakout, samples: counters[i] })) };
+        });
+}
+
+function freakoutsFor(date) {
+    const today = Math.floor(Date.parse(`${date}T00:00:00Z`) / 864e5);
+    let [queue, last, picked] = [[], null, []];
+    for (let day = Math.min(today, 20454); day <= today; day++) {
+        let r = makeRng(`freakouts/count/${day}`).range(0, 1);
+        const count = FREAKOUT_ODDS.count.findIndex((p) => (r -= p) < 0);
+        picked = [];
+        for (let k = 0; k < count; k++) {
+            if (!queue.length) {
+                const deck = makeRng(`freakouts/${day}/${k}`).shuffle(FREAKOUTS);
+                queue = deck[0] === last ? [...deck.slice(1), deck[0]] : deck;
+            }
+            picked.push((last = queue.shift()));
+        }
+    }
+    return picked;
+}
+
+function pickLines(prompt, seed) {
+    const chains = PROMPTS[prompt].map(steps);
+    let seq = [];
+    for (let attempt = 0; attempt < 2000; attempt++) {
+        const rng = makeRng(`${seed}/${attempt}`);
+        const words = rng.shuffle(ONE_WORDS);
+        const seen = new Map();
+        let [spread, taken, since] = [true, 0, 0];
+        seq = [];
+        const add = (chain) => {
+            for (const text of chain) {
+                const prev = seen.get(opening(text));
+                if (prev && prev.chain !== chain && seq.length - prev.at <= ANSWER.openingGap) spread = false;
+                seen.set(opening(text), { at: seq.length, chain });
+                seq.push(text);
+            }
+        };
+        for (const chain of rng.shuffle(chains)) {
+            if (taken + chain.length > ANSWER.lines) continue;
+            add(chain);
+            taken += chain.length;
+            since += chain.length;
+            if (since >= ANSWER.every) {
+                add([words.pop()]);
+                since = 0;
+            }
+        }
+        if (spread) return seq;
+    }
+    console.warn(`warning: no order of "${prompt}" keeps same-word lines ${ANSWER.openingGap} apart; using the last try`);
+    return seq;
+}
+
+const steps = (entry) => entry.split('→').map((s) => s.trim());
+const opening = (text) => text.split(/\s+/)[0].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+function checkPrompts() {
+    if (Object.keys(PROMPTS).length < EPISODES) fail(`EPISODES is ${EPISODES} but PROMPTS only has ${Object.keys(PROMPTS).length}`);
+    for (const [prompt, entries] of Object.entries(PROMPTS)) {
+        const lines = entries.flatMap(steps);
+        for (const text of lines) if (!text || text.length + 2 > MIN_COLS) fail(`"${text}" in "${prompt}" is empty or too long`);
+        for (const text of new Set(lines.filter((t, k) => lines.indexOf(t) !== k))) fail(`"${text}" is in "${prompt}" twice`);
+        if (lines.length < ANSWER.lines) console.warn(`warning: "${prompt}" needs ${ANSWER.lines} lines but only has ${lines.length}`);
+    }
+    if (FREAKOUTS.length < 2) fail('FREAKOUTS needs at least 2 lines, so no meltdown repeats the one before');
+    if (FREAKOUT_ODDS.prompt.length !== EPISODES) fail(`FREAKOUT_ODDS.prompt needs one weight per episode (${EPISODES})`);
+    if (FREAKOUT_ODDS.count.length - 1 > EPISODES) fail('FREAKOUT_ODDS.count allows more meltdowns than there are episodes');
+    for (const text of FREAKOUTS) if (!text || text.length + 1 > MIN_COLS) fail(`"${text}" is empty or too long`);
+}
+
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+const formatTokens = (n) => compact.format(n).toLowerCase();
+const formatDuration = (s) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
+const STATUS_VARIANTS = [
+    (s) => [[`(${formatDuration(s.secs)} · ↑ ${formatTokens(s.tokens)} tokens · `], ['esc', true], [' to interrupt)']],
+    (s) => [[`(${formatDuration(s.secs)} · ↑ ${formatTokens(s.tokens)} tokens)`]],
+    (s) => [[`(${formatDuration(s.secs)})`]],
+];
+const width = (parts) => parts.reduce((n, [t]) => n + cellsIn(t), 0);
+const statusRoom = (verb, cols) => cols - 1 - (cellsIn(verb) + 2);
+
+function counterSamples(rng, lineCount) {
+    let [secs, tokens] = [rng.range(1, 4), Math.round(rng.range(120, 480))];
+    return Array.from({ length: lineCount }, () => {
+        const rate = rng.range(40, 160);
+        return Array.from({ length: TICKS_PER_LINE }, () => {
+            const sample = { secs: Math.floor(secs), tokens };
+            secs += TICK;
+            tokens += Math.round(rate * TICK * rng.range(0.3, 1.7));
+            return sample;
+        });
+    });
+}
+
+function statusFor(verb, samples, cols) {
+    const room = statusRoom(verb, cols);
+    const variant = STATUS_VARIANTS.find((v) => samples.every((s) => width(v(s)) <= room));
+    const out = [];
+    if (variant) samples.forEach((s, k) => {
+        const parts = variant(s);
+        const key = parts.map((p) => p[0]).join('');
+        if (out.at(-1)?.key === key) out.at(-1).ticks += 1;
+        else out.push({ key, parts, sample: s, start: k, ticks: 1 });
+    });
+    return out;
+}
+
+function renderSvg(episodes, version, claudeVersion, facts, name) {
+    const theme = Object.fromEntries(Object.keys(THEMES.dark).map((k) => [k, `var(--${k})`]));
+    const [V, G] = [VIEWS[name], LAYOUTS[name]];
+    const D = TICKS_PER_LINE * TICK;
+    const { len } = G;
+    const rng = makeRng(`${version}/story`);
+
+    let clock = 0;
+    const eps = episodes.map((ep) => {
+        const [start, chars, typedAt] = [clock, [...ep.prompt], []];
+        clock += STORY.pause;
+        for (const ch of chars) {
+            typedAt.push(clock);
+            clock += STORY.perChar * rng.range(0.6, 1.5) * (ch === ' ' ? 1.4 : 1);
+        }
+        const sent = clock + STORY.hold, work = sent + 0.25, limit = work + ep.playlist.length * D;
+        const rewind = limit + STORY.limit, slide = rewind + STORY.scrub, back = slide + STORY.slide;
+        const unwound = back + chars.length * STORY.untype;
+        clock = unwound + STORY.settle;
+        return { ...ep, chars, start, typedAt, sent, work, limit, rewind, slide, back, unwound, end: clock };
+    });
+    const T = clock;
+    const rewinds = eps.map((e) => [e.rewind, e.unwound]);
+
+    const EMPTY = -1, HEAD = 2 * V.width;
+    const digits = Math.ceil(Math.log10(T / 0.01));
+    const animate = (attr, steps, { type = 'translate', mode = 'discrete', add = false } = {}) => {
+        const keys = [];
+        for (const [t, v] of steps) {
+            const k = round(t / T, digits);
+            if (mode === 'discrete' && keys.at(-1)?.[0] === k) keys.pop();
+            if (mode !== 'discrete' || keys.at(-1)?.[1] !== String(v)) keys.push([k, String(v)]);
+        }
+        const tag = attr === 'transform' ? `animateTransform type="${type}"` : 'animate';
+        return `<${tag} attributeName="${attr}"${add ? ' additive="sum"' : ''} calcMode="${mode}" begin="${LEAD}s" dur="${round(T, 3)}s" repeatCount="indefinite" keyTimes="${keys.map(([k]) => k).join(';')}" values="${keys.map(([, v]) => v).join(';')}"/>`;
+    };
+    const onRow = (prefix, steps) => animate('xlink:href', steps.map(([t, r]) => [t, r === EMPTY ? '#none' : `#${prefix}${r}`]));
+    const spans = (attr, on, off, list) => animate(attr, [[0, off], ...list.flatMap(([a, b]) => [[a, on], [b, off]])]);
+    const during = (...list) => spans('display', 'inline', 'none', list);
+
+    const waveRng = makeRng(`${version}/wave`);
+    const lattices = Array.from({ length: WAVE.patterns }, () => Array.from({ length: 64 }, () => waveRng.range(0, 1)));
+    const noise = (lat, x) => {
+        const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
+        return lat[i % lat.length] * (1 - u) + lat[(i + 1) % lat.length] * u;
+    };
+    const waveAt = (p, y) => WAVE.scale * ((noise(lattices[p], y * WAVE.frequency) + 0.5 * noise(lattices[p], y * 2 * WAVE.frequency + 17)) / 1.5 - 0.5);
+    const waved = (y0, y1, body) => {
+        const cy = (y0 + y1) / 2;
+        const moves = Array.from({ length: WAVE.patterns }, (_, p) => {
+            const slope = (waveAt(p, y1) - waveAt(p, y0)) / (y1 - y0);
+            return [round(waveAt(p, cy) - slope * cy, 1), round((Math.atan(slope) * 180) / Math.PI, 1)];
+        });
+        const cycle = (type, values, add = '') => rewinds.map(([a, b]) =>
+            `<animateTransform attributeName="transform" type="${type}"${add} calcMode="discrete" dur="${round(WAVE.patterns * WAVE.step, 3)}s" begin="loop.begin+${round(a, 3)}s" repeatDur="${round(b - a, 3)}s" values="${values.join(';')}"/>`).join('');
+        return `<g>${cycle('translate', moves.map(([shift]) => shift))}${cycle('skewX', moves.map(([, lean]) => lean), ' additive="sum"')}${body}</g>`;
+    };
+    const fringes = (id) => [[-WAVE.fringe, 'red'], [WAVE.fringe, 'cyan']]
+        .map(([x, tint]) => `<use xlink:href="#none" x="${x}" class="${tint}">${spans('xlink:href', `#${id}`, '#none', rewinds)}</use>`).join('');
+    const line = (y0, y1, id, body) => waved(y0, y1, `${fringes(id)}<g id="${id}">${body}</g>`);
+    const inRewinds = (steps) => [[0, EMPTY], ...rewinds.flatMap(([a, b]) => [...steps.filter(([t]) => t >= a && t < b), [b, EMPTY]])];
+    const rowFringes = () => [[-WAVE.fringe, 'red'], [WAVE.fringe, 'cyan']].map(([x, tint]) => `<g clip-path="url(#row)" class="${tint}">${[['v', verbSteps], ['r', statusSteps]]
+        .map(([prefix, steps]) => `<use xlink:href="#none" x="${round(G.textX + x)}" y="${G.spinnerBase}">${onRow(prefix, inRewinds(steps))}</use>`).join('')}</g>`).join('');
+    const textBand = (base) => [base - V.fontSize, base + 4];
+
+    const verbRows = [], statusRows = [], tails = new Map();
+    const place = `x="${G.textX}" y="${G.spinnerBase}"`;
+    const text = (x, cells, attrs, body) => `<text${attrs && ` ${attrs}`}${x ? ` x="${round(x)}"` : ''}${cells ? ` textLength="${len(cells)}"` : ''}>${body}</text>`;
+    const addVerb = (line, cells) => verbRows.push(line.freakout
+        ? text(0, cells, `id="v${verbRows.length}" style="fill:${theme.error}"`, xml(line.text))
+        : `<g id="v${verbRows.length}">${text(0, cells, 'class="v"', xml(`${line.text}…`))}<g clip-path="url(#s${cells})">${text(0, cells, 'class="sh"', xml(`${line.text}…`))}</g></g>`) - 1;
+    const pieces = (x, parts) => parts.map(([t, bold]) => {
+        const piece = text(x, cellsIn(t), bold ? 'class="b"' : '', xml(t));
+        x += cellsIn(t) * V.cell;
+        return piece;
+    }).join('');
+    const addStatus = (x, [head, ...tail]) => {
+        let body = pieces(x, [head]);
+        if (tail.length) {
+            const key = JSON.stringify(tail);
+            if (!tails.has(key)) tails.set(key, `<g id="t${tails.size}">${pieces(0, tail)}</g>`);
+            body += `<use xlink:href="#t${[...tails.keys()].indexOf(key)}" x="${round(x + width([head]) * V.cell)}"/>`;
+        }
+        return statusRows.push(`<g id="r${statusRows.length}" class="d">${body}</g>`) - 1;
+    };
+
+    const head = [[0, V.width]], glide = [[0, 0]], oldShift = [[0, 0]];
+    const verbSteps = [[0, EMPTY]], statusSteps = [[0, EMPTY]], oldRows = [[0, EMPTY]], oldStatus = [[0, EMPTY]];
+    const lastStatusRow = [], lastStatus = [], freakouts = [], shimmerLengths = new Set();
+    const cellsOf = (line) => cellsIn(line.text) + (line.freakout ? 0 : 1);
+    const scrub = (t, line) => {
+        verbSteps.push([t, line]);
+        statusSteps.push([t, lastStatusRow[line] ?? EMPTY]);
+    };
+    let g = 0;
+    for (const ep of eps) {
+        const first = g;
+        ep.playlist.forEach((line, i) => {
+            const t0 = ep.work + i * D;
+            const cells = cellsOf(line);
+            const prev = i > 0 ? g - 1 : EMPTY;
+            const was = i > 0 ? cellsOf(ep.playlist[i - 1]) : 0;
+            const typing = Math.min(TYPE.max, Math.max(0.1, Math.round(Math.max(cells, was) * TYPE.perChar * 20) / 20));
+            if (line.freakout) freakouts.push({ start: t0, typed: t0 + typing, end: t0 + D });
+            else shimmerLengths.add(cells);
+
+            oldRows.push([t0, prev]);
+            let oldRow = lastStatusRow[prev] ?? EMPTY;
+            const old = lastStatus[prev], room = statusRoom(line.text, G.cols);
+            if (old && width(old.parts) > room) {
+                const fit = STATUS_VARIANTS.find((v) => width(v(old.sample)) <= room);
+                oldRow = fit ? addStatus((was + 1) * V.cell, fit(old.sample)) : EMPTY;
+            }
+            oldStatus.push([t0, oldRow]);
+            head.push([t0, G.textX], [t0 + typing, V.width]);
+            glide.push([t0, 0], [t0 + typing, len(cells)], [t0 + typing + 0.05, 0]);
+            oldShift.push([t0, 0], [t0 + typing, len(cells - was)], [t0 + typing + 0.05, 0]);
+            verbSteps.push([t0, addVerb(line, cells)]);
+            statusSteps.push([t0, EMPTY]);
+            lastStatusRow[g] = EMPTY;
+            for (const st of statusFor(line.text, line.samples, G.cols)) {
+                const start = Math.max(st.start * TICK, typing);
+                if ((st.start + st.ticks) * TICK <= start) continue;
+                lastStatus[g] = st;
+                statusSteps.push([t0 + start, (lastStatusRow[g] = addStatus((cells + 1) * V.cell, st.parts))]);
+            }
+            g++;
+        });
+        scrub(ep.limit, EMPTY);
+        for (let k = 0, K = STORY.scrubFrames, n = ep.playlist.length; k < K; k++) scrub(ep.rewind + STORY.scrub * Math.sqrt(k / K), first + Math.round((n - 1) * (1 - k / (K - 1))));
+        scrub(ep.slide, EMPTY);
+    }
+
+    const headY = round(G.spinnerBase - V.caret + 4.5);
+    const caretStop = round(V.cell / HEAD, 5);
+    const inputX = G.textX + 2 * V.cell;
+    const inputY = round((G.boxTop + G.boxBottom) / 2 - V.caret / 2);
+    const typedCells = [[0, 0]];
+    for (const e of eps) {
+        const m = e.chars.length;
+        typedCells.push(...e.typedAt.map((t, k) => [t, k + 1]), [e.sent, 0], [e.back, m]);
+        for (let s = 1; s <= m; s++) typedCells.push([e.back + s * STORY.untype, m - s]);
+    }
+    const input = eps.map((e) => `<g clip-path="url(#input)" display="none">${during([e.start, e.sent], [e.back, e.end])}<text class="t" x="${round(inputX)}" y="${G.inputBase}" textLength="${len(e.chars.length)}">${xml(e.prompt)}</text></g>`);
+
+    const user = eps.map((e, i) => {
+        const fall = [[0, '0 0']];
+        for (let t = e.slide; t < e.back; t += 1 / TYPE.fps) fall.push([t, `0 ${round((G.inputBase - G.userBase) * ((t - e.slide) / STORY.slide) ** 2)}`]);
+        fall.push([e.back, '0 0']);
+        return `<g display="none">${during([e.sent, e.back])}${animate('transform', fall)}${fringes(`u${i}`)}<g id="u${i}"><text class="d" x="${G.textX}" y="${G.userBase}">&gt;</text><text class="t" x="${round(G.textX + 2 * V.cell)}" y="${G.userBase}" textLength="${len(e.chars.length)}">${xml(e.prompt)}</text></g></g>`;
+    });
+    const resets = ` · resets ${Math.floor(rng.range(1, 13))}${rng.range(0, 1) < 0.5 ? 'am' : 'pm'} (UTC)`;
+    const limitText = `You've hit your session limit${V.shortLimit ? '' : resets}`;
+    const upgradeText = '/upgrade to increase your usage limit.';
+    const hookX = G.textX + 2.5 * V.cell;
+    const errorBase = round(G.userBase + V.row);
+
+    const shake = [[0, '0 0']];
+    for (const [a, b] of rewinds) {
+        for (let t = a; t < b; t += 0.04) shake.push([t, `${Math.round(rng.range(-3, 3))} ${rng.range(0, 1) < 0.2 ? Math.round(rng.range(-1, 1)) : 0}`]);
+        if (b < T) shake.push([b, '0 0']);
+    }
+    const bandH = 26;
+    const half = (G.height + bandH) / 2;
+    const roll = Array.from({ length: 9 }, (_, k) => `0 ${round((-k * half) / 9)}`).join(';');
+    const badgeY = G.baseAt(1);
+    const badgeRight = G.right - V.cell;
+    const badgeLeft = badgeRight - 3 * V.cell - 22;
+    const tri = (x) => `M${round(x)} ${round(badgeY - 4.5)}l7 -4.5v9Z`;
+    const blink = [];
+    for (const [a, b] of rewinds) for (let t = a; t < b; t += 0.45) blink.push([t, Math.min(t + 0.3, b)]);
+    const spinning = eps.flatMap((e) => {
+        const spans = [];
+        let from = e.work;
+        for (const f of freakouts.filter((f) => f.start >= e.work && f.start < e.limit)) {
+            spans.push([from, f.start]);
+            from = f.end;
+        }
+        if (from < e.limit) spans.push([from, e.limit]);
+        return [...spans, [e.rewind, e.slide]];
+    });
+    const jolt = makeRng(`${version}/jolt`);
+    const jitter = [[0, '0 0']];
+    for (const f of freakouts) {
+        for (let t = f.typed; t < f.typed + 0.9; t += 0.04) jitter.push([t, `${Math.round(jolt.range(-2, 2))} ${Math.round(jolt.range(-1, 1))}`]);
+        jitter.push([f.typed + 0.9, '0 0']);
+    }
+    const whoosh = (at, sign) => [[at, -6 * sign], [at + 0.03, -14 * sign], [at + 0.06, -7 * sign], [at + 0.09, 0]];
+    const flashes = [[0, 0], ...rewinds.flatMap(([a, b]) => [[a, 0.14], [a + 0.06, 0.07], [a + 0.12, 0], [b, 0.1], [b + 0.06, 0]])];
+
+    const glyphAt = `translate(${round(G.left + GLYPH.radius)} ${round(G.spinnerBase - GLYPH.lift)}) scale(${GLYPH.radius})`;
+    const shimmerDefs = [...shimmerLengths].sort((a, b) => a - b).map((cells) => {
+        const idle = Math.round(((cells + SHIMMER.width - 1) * SHIMMER.idle) / (1 - SHIMMER.idle));
+        const xs = [];
+        for (let k = 1 - SHIMMER.width; k < cells; k++) xs.push(len(k));
+        for (let k = 0; k < idle; k++) xs.push(len(cells));
+        return `<clipPath id="s${cells}"><rect y="${round(headY - 6 - G.spinnerBase)}" width="${len(SHIMMER.width)}" height="${V.caret + 12}"><animate attributeName="x" calcMode="discrete" dur="${round(xs.length * SHIMMER.step, 3)}s" repeatCount="indefinite" values="${xs.join(';')}"/></rect></clipPath>`;
+    });
+    const clawd = renderClawd(V, G, ...clawdTrack(version, eps, T));
+    const banner = renderBanner(V, G, claudeVersion, facts, line, textBand, theme);
+    const vars = (t) => Object.entries(t).map(([k, v]) => `--${k}:${v}`).join(';');
+    const tint = (color) => `${Object.keys(THEMES.dark).map((k) => `--${k}:${color}`).join(';')};--solo:none`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${V.width}" height="${G.height}" viewBox="0 0 ${V.width} ${G.height}" role="img">
+<!-- Generated by generate.mjs for ${version}: ${eps.length} prompts, ${g} lines, ${round(T)} s loop. Edit PROMPTS in generate.mjs, not this file. -->
+<!-- banner ${Buffer.from(JSON.stringify(facts)).toString('base64')} -->
+<!-- ${NOTICE} -->
+<title>${xml(describe(eps))}</title>
+<style>
+:root{${vars(THEMES.light)}}
+@media (prefers-color-scheme:dark){:root{${vars(THEMES.dark)}}}
+text{font-family:${FONT};font-size:${V.fontSize}px;white-space:pre;font-variant-ligatures:none;font-kerning:none}
+.t{fill:${theme.text}}.d{fill:${theme.dim}}${HEAT.levels.map((_, l) => `.h${l}{fill:${theme[`heat${l}`]}}`).join('')}.b{font-weight:700}.v{fill:${theme.claude}}.sh{fill:${theme.shimmer}}
+.g{fill:${theme.claude};visibility:hidden;animation:${round((GLYPH.frames.length * GLYPH.frameMs) / 1000)}s step-end infinite}
+${GLYPH_SHAPES.map((_, g) => frameKeyframes(`g${g}`, GLYPH.frames, (f) => f === g)).join('\n')}
+${clawd.css}
+.cur{animation:blink ${CURSOR_BLINK}s step-end infinite}@keyframes blink{0%{visibility:visible}50%,100%{visibility:hidden}}
+.red{${tint(WAVE.red)}}.cyan{${tint(WAVE.cyan)}}
+</style>
+<defs>
+${shimmerDefs.join('\n')}
+<rect id="head" x="${V.width}" y="${headY}" width="${HEAD}" height="${V.caret}">${animate('x', head)}${animate('x', [...glide, [T, 0]], { mode: 'linear', add: true })}</rect>
+<clipPath id="line"><rect x="0" y="${headY}" width="${V.width}" height="${V.caret}"/></clipPath>
+<clipPath id="row"><rect x="0" y="${headY - 6}" width="${round(G.right - V.cell / 2)}" height="${V.caret + 12}"/></clipPath>
+<clipPath id="typed"><use xlink:href="#head" x="-${HEAD}"/></clipPath>
+<clipPath id="old"><use xlink:href="#head" x="${V.cell}"/></clipPath>
+<linearGradient id="caret"><stop offset="0" style="stop-color:${theme.claude}"/><stop offset="${caretStop}" style="stop-color:${theme.claude}"/><stop offset="${caretStop}" stop-opacity="0"/></linearGradient>
+<linearGradient id="tracking" x2="0" y2="1"><stop offset="0" style="stop-color:${theme.text}" stop-opacity="0"/><stop offset="0.5" style="stop-color:${theme.text}" stop-opacity="0.22"/><stop offset="1" style="stop-color:${theme.text}" stop-opacity="0"/></linearGradient>
+<clipPath id="screen"><rect x="0.5" y="0.5" width="${V.width - 1}" height="${G.height - 1}" rx="10"/></clipPath>
+<pattern id="scan" width="8" height="3" patternUnits="userSpaceOnUse"><rect width="8" height="1" style="fill:${theme.text}" opacity="0.06"/></pattern>
+${clawd.defs}
+<clipPath id="input"><rect x="${round(inputX)}" y="${inputY}" height="${V.caret}" width="0">${animate('width', typedCells.map(([t, c]) => [t, len(c)]))}</rect></clipPath>
+<g id="none"/>
+<rect width="0" height="0"><set id="loop" attributeName="visibility" to="hidden" begin="${LEAD}s;loop.end" dur="${round(T, 3)}s"/></rect>
+${[...tails.values()].join('\n')}
+${statusRows.join('\n')}
+${verbRows.join('\n')}
+</defs>
+<rect x="0.5" y="0.5" width="${V.width - 1}" height="${G.height - 1}" rx="10" style="fill:${theme.bg};stroke:${theme.frame}"/>
+<g clip-path="url(#screen)">
+<g>${animate('transform', shake)}<g>${animate('transform', [[0, 0], ...rewinds.flatMap(([a, b]) => [...whoosh(a, 1), ...whoosh(b, -1)])], { type: 'skewX' })}
+${banner}
+${waved(G.clawdY - 4 * V.row, G.clawdY + 3 * V.row, clawd.svg)}
+${line(badgeY - 13, badgeY + 5, 'Lrew', `<g display="none" style="fill:${theme.text}">${during(...blink)}
+${V.badgeBox ? `<rect x="${round(badgeLeft - 6)}" y="${round(badgeY - 13)}" width="${round(badgeRight - badgeLeft + 12)}" height="18" rx="3" style="fill:${theme.bg}"/>` : ''}<path d="${tri(badgeLeft)}${tri(badgeLeft + 8)}"/>
+<text class="t b" x="${round(badgeRight - 3 * V.cell)}" y="${badgeY}" textLength="${len(3)}">REW</text>
+</g>`)}
+${waved(...textBand(G.userBase), user.join('\n'))}
+<g display="none">${during(...eps.map((e) => [e.limit, e.rewind]))}
+<path d="M${round(hookX)} ${round(errorBase - V.capHeight)}V${round(errorBase - 3)}H${round(hookX + V.cell)}" fill="none" style="stroke:${theme.dim}"/>
+<text style="fill:${theme.error}" x="${round(G.textX + 5 * V.cell)}" y="${errorBase}" textLength="${len(cellsIn(limitText))}">${xml(limitText)}</text>
+<text class="d" x="${round(G.textX + 5 * V.cell)}" y="${G.spinnerBase}" textLength="${len(cellsIn(upgradeText))}">${xml(upgradeText)}</text>
+</g>
+${waved(...textBand(G.spinnerBase), `${rowFringes()}<g clip-path="url(#row)">${animate('transform', jitter)}
+<g display="none">${during(...spinning)}
+${GLYPH_SHAPES.map((d, g) => `<path class="g" style="animation-name:g${g}" transform="${glyphAt}" d="${d}"/>`).join('\n')}
+</g>
+<path display="none" transform="${glyphAt}" d="${GLYPH_SHAPES[4]}" style="fill:${theme.error}">${during(...freakouts.map((f) => [f.start, f.end]))}</path>
+<g clip-path="url(#typed)"><use xlink:href="#none" ${place}>${onRow('v', verbSteps)}</use></g>
+<g clip-path="url(#old)"><g>${animate('transform', [...oldShift, [T, 0]], { mode: 'linear' })}<use xlink:href="#none" ${place}>${onRow('v', oldRows)}</use><use xlink:href="#none" ${place}>${onRow('r', oldStatus)}</use></g></g>
+<g clip-path="url(#line)"><use xlink:href="#none" ${place}>${onRow('r', statusSteps)}</use></g>
+<use xlink:href="#head" fill="url(#caret)"/>
+</g>`)}
+${line(G.boxTop, G.boxBottom, 'Lbox2', `<rect x="${G.left}" y="${G.boxTop}" width="${G.right - G.left}" height="${G.boxBottom - G.boxTop}" rx="5" fill="none" style="stroke:${theme.border}"/>`)}
+${line(inputY, inputY + V.caret, 'Lin', `<text x="${G.textX}" y="${G.inputBase}" class="d">&gt;</text>
+${input.join('\n')}
+<rect class="cur" x="${round(inputX)}" y="${inputY}" width="${V.cell}" height="${V.caret}" style="fill:${theme.cursor};display:var(--solo,inline)">${animate('x', typedCells.map(([t, c]) => [t, round(inputX + c * V.cell)]))}</rect>`)}
+${line(...textBand(G.hintBase), 'Lhint', `<text x="${G.textX}" y="${G.hintBase}" textLength="${len(15)}" class="d">? for shortcuts</text>`)}
+</g></g>
+<g display="none">${during(...rewinds)}
+<rect width="${V.width}" height="${G.height}" fill="url(#scan)"/>
+<g><animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="0.3s" repeatCount="indefinite" values="${roll}"/>
+${[G.height, G.height - half].map((y) => `<rect y="${round(y)}" width="${V.width}" height="${bandH}" fill="url(#tracking)"/>`).join('')}
+</g></g>
+<rect width="${V.width}" height="${G.height}" style="fill:${theme.text}" opacity="0" display="none">${during(...rewinds.flatMap(([a, b]) => [[a, a + 0.12], [b, b + 0.06]]))}${animate('opacity', flashes)}</rect>
+</g>
+</svg>
+`;
+}
+
+function renderBanner(V, G, claudeVersion, { model, calendar }, line, textBand, theme) {
+    const { len } = G;
+    const words = [];
+    const say = (x, row, cls, t) => words.push([round(x), row, cls, t]);
+    const centered = (row, cls, t) => say(G.centerX(cellsIn(t)), row, cls, t);
+    centered(G.leftRow, 't b', BANNER.welcome);
+    centered(G.leftRow + 8, 'd', `${model} · ${BANNER.plan}`);
+    centered(G.leftRow + 9, 'd', BANNER.cwd);
+    const R = G.rightRow;
+    say(G.rightX, R, 'v', 'About me');
+    BANNER.about.forEach((t, k) => say(G.rightX, R + 1 + k, 't', t));
+    const A = G.activityRow;
+    say(G.rightX, A, 'v', 'Recent activity');
+
+    let chart = '';
+    if (calendar?.weeks.length) {
+        const pitch = G.heatPitch, weeks = calendar.weeks.slice(-HEAT.weeks);
+        const size = round(pitch * HEAT.fill);
+        const bottom = G.baseAt(A + G.heatRows), top = bottom - 6 * pitch - size;
+        const start = G.endX(0) - weeks.length * pitch;
+        const cells = weeks.flatMap((w, k) => [...w.levels].flatMap((l, d) => (l === ' ' ? [] : [`<use xlink:href="#hc" class="h${l}" x="${round(start + k * pitch)}" y="${round(top + d * pitch)}"/>`])));
+        chart = line(top, bottom, 'Lchart', `<defs><rect id="hc" width="${size}" height="${size}" rx="${HEAT.radius}"/></defs>${cells.join('')}`);
+        const total = weeks.reduce((n, w) => n + (w.count ?? 0), 0).toLocaleString('en');
+        const captions = [`${total} contributions in the last ${Math.round((weeks.length * 7) / 30.44)} months`, `${total} contributions`];
+        const caption = captions.find((c) => cellsIn('Recent activity') + 2 + cellsIn(c) <= G.rightCols);
+        if (caption) say(G.endX(cellsIn(caption)), A, 'd', caption);
+    } else say(G.rightX, A + 1, 'd', 'No recent activity');
+
+    const title = `Claude Code v${claudeVersion}`;
+    const titleX = round(G.left + 3 * V.cell);
+    const [x0, y0, x1, y1, r] = [G.left, G.top, G.right, G.bannerBottom, 5];
+    const box = `M${round(titleX + (cellsIn(title) + 1) * V.cell)} ${y0}H${x1 - r}A${r} ${r} 0 0 1 ${x1} ${y0 + r}V${y1 - r}A${r} ${r} 0 0 1 ${x1 - r} ${y1}`
+        + `H${x0 + r}A${r} ${r} 0 0 1 ${x0} ${y1 - r}V${y0 + r}A${r} ${r} 0 0 1 ${x0 + r} ${y0}H${round(titleX - V.cell)}`;
+    const stroke = (id, ya, yb, d) => line(ya, yb, id, `<path d="${d}" fill="none" style="stroke:${theme.claude}"/>`);
+    const rule = (id, x, row) => stroke(id, G.rowY(row) - 1, G.rowY(row) + 1, `M${round(x)} ${G.rowY(row)}H${round(G.right - 2 * V.cell)}`);
+    return [
+        stroke('Lbox', y0, y1, box),
+        line(...textBand(G.baseAt(0)), 'Ltitle', `<text class="v" x="${titleX}" y="${G.baseAt(0)}" textLength="${len(cellsIn(title))}">${xml(title)}</text>`),
+        G.divider ? stroke('Ldiv', y0 + 0.6 * V.row, y1 - 0.6 * V.row, `M${G.divider} ${round(y0 + 0.6 * V.row)}V${round(y1 - 0.6 * V.row)}`) : '',
+        G.splitRow ? rule('Lsplit', G.textX, G.splitRow) : '',
+        rule('Lrule', G.rightX, G.ruleRow),
+        chart,
+        ...words.map(([x, row, cls, t], k) => line(...textBand(G.baseAt(row)), `Lb${k}`, `<text class="${cls}" x="${x}" y="${G.baseAt(row)}" textLength="${len(cellsIn(t))}">${xml(t)}</text>`)),
+    ].filter(Boolean).join('\n');
+}
+
+function renderClawd(V, G, track, duration) {
+    const { cell, row, fontSize } = V;
+    const block = (13 * cell) / 16;
+    const left = G.clawdX + 4.75 * cell - 6 * block;
+    const draw = (grid, x, y, size) => `<g transform="translate(${round(x)} ${round(y)}) scale(${round(size, 4)})">${Object.entries(SCENE_PALETTE).map(([letter, color]) => {
+        const taken = grid.map((line) => [...line].map((ch) => ch !== letter));
+        const free = (r, c, w) => taken[r] && taken[r].slice(c, c + w).every((t) => !t);
+        let d = '';
+        taken.forEach((line, r) => {
+            for (let c = 0; c < line.length; c++) {
+                if (line[c]) continue;
+                let [w, h] = [1, 1];
+                while (c + w < line.length && !line[c + w]) w++;
+                while (free(r + h, c, w)) h++;
+                for (let k = 0; k < h; k++) taken[r + k].fill(true, c, c + w);
+                d += `M${c} ${r}h${w}v${h}H${c}Z`;
+            }
+        });
+        return d && `<path fill="${color}" d="${d}"/>`;
+    }).join('')}</g>`;
+    const frameKey = (frame) => frame.join('/');
+    const [entranceKeys, trackKeys] = [CLAWD.entrance, track].map((frames) => frames.map(frameKey));
+    const keys = [...new Set([...entranceKeys, ...trackKeys])];
+    const isScene = (key) => key.startsWith('scene:');
+    const groups = keys.map((key, k) => {
+        const [pose, crouch, puff, shift] = key.split('/');
+        if (isScene(key)) {
+            const [, name, frame] = pose.split(':'), { body, cell: scale = 1, frames } = SCENES[name], size = scale * block;
+            return `<g class="c${k}">${draw(frames[frame], left - body[0] * size, G.clawdY - body[1] * size, size)}</g>`;
+        }
+        if (+shift <= -CLAWD.cols) return `<g class="c${k}"/>`;
+        const puffs = puff ? [0, CLAWD.cols - 1].map((c) => `<text class="d" x="${round(G.clawdX + c * cell)}" y="${round(G.clawdY + 2.5 * row + fontSize * 0.35)}">${CLAWD.puffs[puff]}</text>`).join('') : '';
+        return `<g class="c${k}">${draw(CLAWD.poses[pose], left + +shift * cell, G.clawdY + +crouch * row, block)}${puffs}</g>`;
+    });
+    const css = keys.map((key, k) => {
+        const [inEntrance, inTrack] = [entranceKeys, trackKeys].map((list) => list.includes(key));
+        const uses = [inEntrance && `e${k} ${LEAD}s step-end both`, inTrack && `l${k} ${round(duration, 3)}s step-end ${LEAD}s infinite`].filter(Boolean);
+        return `.c${k}{visibility:hidden;animation:${uses.join(',')}}`
+            + (inEntrance ? frameKeyframes(`e${k}`, entranceKeys, (f) => f === key) : '')
+            + (inTrack ? frameKeyframes(`l${k}`, trackKeys, (f) => f === key) : '');
+    });
+    return {
+        css: css.join('\n'),
+        defs: `<clipPath id="clawd"><rect x="${round(left)}" y="${G.clawdY}" width="${round(12 * block)}" height="${round(8 * block)}"/></clipPath>`,
+        svg: `<g clip-path="url(#clawd)">\n${groups.filter((_, k) => !isScene(keys[k])).join('\n')}\n</g>\n${groups.filter((_, k) => isScene(keys[k])).join('\n')}`,
+    };
+}
+
+function frameKeyframes(name, frames, on) {
+    const stops = frames.map((frame, f) => (f === 0 || on(frame) !== on(frames[f - 1]) ? `${round((f / frames.length) * 100, 4)}%{visibility:${on(frame) ? 'visible' : 'hidden'}}` : ''));
+    return `@keyframes ${name}{${stops.join('')}100%{visibility:hidden}}`;
+}
+
+function dot(r) {
+    return `M${-r} 0A${r} ${r} 0 1 0 ${r} 0A${r} ${r} 0 1 0 ${-r} 0Z`;
+}
+
+function petals(count, w) {
+    const c = 1 - w;
+    return spin(count, (p) => `M0 0C${p(-w * 0.3, -c * 0.3)} ${p(-w, -c * 0.6)} ${p(-w, -c)}A${w} ${w} 0 0 1 ${p(w, -c)}C${p(w, -c * 0.6)} ${p(w * 0.3, -c * 0.3)} 0 0Z`);
+}
+
+function spokes(count, h) {
+    return spin(count, (p) => `M${p(-h, 0)}L${p(-h, -(1 - h))}A${h} ${h} 0 0 1 ${p(h, -(1 - h))}L${p(h, 0)}Z`);
+}
+
+function star(points, inner) {
+    const corner = (k, r = k % 2 ? inner : 1) => `${num(r * Math.sin((Math.PI * k) / points))} ${num(-r * Math.cos((Math.PI * k) / points))}`;
+    return `M${Array.from({ length: points * 2 }, (_, k) => corner(k)).join('L')}Z`;
+}
+
+function spin(count, draw) {
+    return Array.from({ length: count }, (_, k) => {
+        const [cos, sin] = [Math.cos((2 * Math.PI * k) / count), Math.sin((2 * Math.PI * k) / count)];
+        return draw((x, y) => `${num(x * cos - y * sin)} ${num(x * sin + y * cos)}`);
+    }).join('');
+}
+
+function num(n) {
+    return String(round(n, 3) || 0);
+}
+
+function round(n, digits = 2) {
+    return Math.round(n * 10 ** digits) / 10 ** digits;
+}
+
+const describe = (eps) =>
+    `${BANNER.title} A Claude Code terminal. Prompts like "${eps.map((e) => e.prompt).join('", "')}" are sent; the spinner cycles through made-up verbs until the usage limit hits, then it all rewinds like a VHS tape and the next prompt is typed`;
+
+function xml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function makeRng(seed) {
+    let [h1, h2] = [0xdeadbeef, 0x41c6ce57];
+    for (let i = 0; i < seed.length; i++) [h1, h2] = [Math.imul(h1 ^ seed.charCodeAt(i), 2654435761), Math.imul(h2 ^ seed.charCodeAt(i), 1597334677)];
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    let a = (h1 ^ h2) >>> 0;
+    const next = () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const shuffle = (list) => {
+        const out = list.slice();
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = Math.floor(next() * (i + 1));
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    };
+    return { range: (lo, hi) => lo + next() * (hi - lo), shuffle };
+}
+
+function fail(message) {
+    console.error(`error: ${message}`);
+    process.exit(1);
+}
+
+await main();
