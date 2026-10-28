@@ -18,7 +18,7 @@ HEADERS = {'authorization': 'token ' + os.environ['ACCESS_TOKEN']}
 USER_NAME = os.environ['USER_NAME']  # 'thiago-diegoli'
 QUERY_COUNT = {'user_getter': 0, 'follow_getter': 0, 'graph_repos': 0, 'recursive_loc': 0, 'loc_query': 0}
 
-BIRTHDAY = datetime.datetime(2005, 2, 12)
+BIRTHDAY = datetime.datetime(2005, 2, 7)
 CACHE_COMMENT_SIZE = 7
 SVG_FILE = 'header.svg'
 
