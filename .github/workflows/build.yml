@@ -39,7 +39,7 @@ jobs:
 
       - name: Generate header SVGs
         env:
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN || secrets.METRICS_TOKEN }}
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           USER_NAME: ${{ github.repository_owner }}
         run: python today.py
 
