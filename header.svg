@@ -68,7 +68,7 @@ text, tspan {white-space: pre;}
 <text x="400" y="55" fill="#c9d1d9"><tspan class="key">thiagodiegoli</tspan><tspan class="value">@</tspan><tspan class="key">github</tspan>
 --------------------
 <tspan class="key">OS</tspan>:<tspan class="cc"> </tspan><tspan class="value">Arch Linux x86_64, Windows 11</tspan>
-<tspan class="key">Uptime</tspan>:<tspan class="cc" id="age_data_dots"> </tspan><tspan class="value" id="age_data">21 years, 8 months, 22 days</tspan>
+<tspan class="key">Uptime</tspan>:<tspan class="cc" id="age_data_dots"> </tspan><tspan class="value" id="age_data">21 years, 8 months, 23 days</tspan>
 <tspan class="key">Host</tspan>:<tspan class="cc"> </tspan><tspan class="value">Mind Group LTDA</tspan>
 <tspan class="key">Kernel</tspan>:<tspan class="cc"> </tspan><tspan class="value">Full Stack Developer</tspan>
 <tspan class="key">Languages Programming</tspan>:<tspan class="cc"> </tspan><tspan class="value">TS/JS, Python, Java</tspan>
