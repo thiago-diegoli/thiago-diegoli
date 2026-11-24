@@ -7,7 +7,7 @@
 </div>
 <div align="center">
   <picture>
-    <source media="(max-width: 600px)" srcset="spinner-mobile.svg?v=3d4def7a">
-    <img alt="Thiago Diegoli · Full Stack Developer A Claude Code terminal. Prompts like &quot;become a chess grandmaster&quot;, &quot;fix prod on a friday&quot;, &quot;estimate this task&quot; are sent; the spinner cycles through made-up verbs until the usage limit hits, then it all rewinds like a VHS tape and the next prompt is typed" src="spinner.svg?v=3d4def7a" width="100%">
+    <source media="(max-width: 600px)" srcset="spinner-mobile.svg?v=9190c1ad">
+    <img alt="Thiago Diegoli · Full Stack Developer A Claude Code terminal. Prompts like &quot;make the pipeline green&quot;, &quot;estimate this task&quot;, &quot;become a chess grandmaster&quot; are sent; the spinner cycles through made-up verbs until the usage limit hits, then it all rewinds like a VHS tape and the next prompt is typed" src="spinner.svg?v=9190c1ad" width="100%">
   </picture>
 </div>
